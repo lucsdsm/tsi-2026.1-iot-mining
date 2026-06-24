@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import time
 
 st.set_page_config(page_title="Mining IoT Dashboard", layout="wide")
 st.markdown("Monitoramento do Gêmeo Digital **MiningTruck:001**")
@@ -66,3 +67,6 @@ if data and 'rows' in data and len(data['rows']) > 0:
 
 else:
     st.warning("Aguardando dados do Banco CrateDB... Certifique-se de que o publisher.py está rodando.")
+
+time.sleep(5)
+st.rerun()
