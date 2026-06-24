@@ -62,3 +62,6 @@ Em um segundo terminal, instale as dependências visuais e inicie o painel:
 pip install streamlit pandas requests
 streamlit run app.py
 ```
+
+**5. Exemplo de interface com Streamlit funcionando:**
+![alt text](example.png)
