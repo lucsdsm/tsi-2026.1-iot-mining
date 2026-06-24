@@ -1,0 +1,165 @@
+[
+    {
+        "id": "f6f2187d.f17ca8",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "3cc11d24.ff01a2",
+        "type": "comment",
+        "z": "f6f2187d.f17ca8",
+        "name": "WARNING: please check you have started this container with a volume that is mounted to /data\\n otherwise any flow changes are lost when you redeploy or upgrade the container\\n (e.g. upgrade to a more recent node-red docker image).\\n  If you are using named volumes you can ignore this warning.\\n Double click or see info side panel to learn how to start Node-RED in Docker to save your work",
+        "info": "\nTo start docker with a bind mount volume (-v option), for example:\n\n```\ndocker run -it -p 1880:1880 -v /home/user/node_red_data:/data --name mynodered nodered/node-red\n```\n\nwhere `/home/user/node_red_data` is a directory on your host machine where you want to store your flows.\n\nIf you do not do this then you can experiment and redploy flows, but if you restart or upgrade the container the flows will be disconnected and lost. \n\nThey will still exist in a hidden data volume, which can be recovered using standard docker techniques, but that is much more complex than just starting with a named volume as described above.",
+        "x": 350,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "c39636365c2d2516",
+        "type": "mqtt in",
+        "z": "f6f2187d.f17ca8",
+        "name": "Captura Telemetria Caminhão",
+        "topic": "/mining/truck001/telemetry",
+        "qos": "0",
+        "datatype": "utf8",
+        "broker": "broker_mosquitto_local",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 180,
+        "y": 320,
+        "wires": [
+            [
+                "868dbfedf2be172f"
+            ]
+        ]
+    },
+    {
+        "id": "868dbfedf2be172f",
+        "type": "json",
+        "z": "f6f2187d.f17ca8",
+        "name": "Converte String para Objeto",
+        "property": "payload",
+        "action": "obj",
+        "pretty": false,
+        "x": 440,
+        "y": 320,
+        "wires": [
+            [
+                "a11bf76523d77a2f"
+            ]
+        ]
+    },
+    {
+        "id": "a11bf76523d77a2f",
+        "type": "function",
+        "z": "f6f2187d.f17ca8",
+        "name": "Regra de Negócio & NGSI-v2",
+        "func": "const data = msg.payload || {};\n\n// Travas de segurança: evita envio de 'undefined' se o Python estiver defasado\nconst engineStatus = data.engineStatus || \"OFF\";\nconst speed = typeof data.speed === 'number' ? data.speed : 0.0;\nconst fuelInstant = typeof data.fuelInstant === 'number' ? data.fuelInstant : 0.0;\nconst fuelEfficiency = typeof data.fuelEfficiency === 'number' ? data.fuelEfficiency : 0.0;\n\n// Regra de negócio (Alerta de Desperdício)\nconst isWasting = (speed === 0 && engineStatus === \"IDLE\");\n\nmsg.headers = { \n    \"Content-Type\": \"application/json\"\n};\n\n// Arquitetura Upsert (Batch) para o Orion\nmsg.payload = {\n    \"actionType\": \"append\",\n    \"entities\": [\n        {\n            \"id\": \"MiningTruck:001\",\n            \"type\": \"Vehicle\",\n            \"engineStatus\": { \"type\": \"Text\", \"value\": engineStatus },\n            \"speed\": { \"type\": \"Number\", \"value\": speed },\n            \"fuelInstant\": { \"type\": \"Number\", \"value\": fuelInstant },\n            \"fuelEfficiency\": { \"type\": \"Number\", \"value\": fuelEfficiency },\n            \"wasteAlert\": { \"type\": \"Boolean\", \"value\": isWasting }\n        }\n    ]\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 720,
+        "y": 320,
+        "wires": [
+            [
+                "0bf3cb31c07ab9d0",
+                "4656bfe30f2fd11c"
+            ]
+        ]
+    },
+    {
+        "id": "0bf3cb31c07ab9d0",
+        "type": "http request",
+        "z": "f6f2187d.f17ca8",
+        "name": "Upsert Gêmeo Digital (Orion)",
+        "method": "POST",
+        "ret": "txt",
+        "url": "http://orion:1026/v2/op/update",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1010,
+        "y": 320,
+        "wires": [
+            [
+                "ad0329b33a7782ec"
+            ]
+        ]
+    },
+    {
+        "id": "4656bfe30f2fd11c",
+        "type": "debug",
+        "z": "f6f2187d.f17ca8",
+        "name": "Log Payload Enviado",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 980,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "ad0329b33a7782ec",
+        "type": "debug",
+        "z": "f6f2187d.f17ca8",
+        "name": "Status Orion",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "statusCode",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 1250,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "broker_mosquitto_local",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Interno",
+        "broker": "mosquitto",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    }
+]
