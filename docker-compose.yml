@@ -1,0 +1,76 @@
+services:
+  # 1. Banco de dados de Contexto (Estado Atual)
+  mongo:
+    image: mongo:6.0
+    container_name: mining-mongo
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # 2. FIWARE Orion (Gerenciador de Contexto)
+  orion:
+    image: fiware/orion:3.10.1
+    container_name: mining-orion
+    ports:
+      - "1026:1026"
+    command: -dbhost mongo
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  # 3. Broker MQTT
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mining-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  # 4. Middleware e Tradução
+  nodered:
+    image: nodered/node-red:latest
+    container_name: mining-nodered
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered-data:/data
+
+  # 5. Banco de Dados de Série Temporal Histórica
+  cratedb:
+    image: crate:5.4.1
+    container_name: mining-cratedb
+    ports:
+      - "4200:4200"
+    environment:
+      - CRATE_HEAP_SIZE=512m
+    command: crate -Cdiscovery.type=single-node -Ccluster.routing.allocation.disk.threshold_enabled=false
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-f", "http://localhost:4200/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 6. FIWARE QuantumLeap (Persistência Histórica)
+  quantumleap:
+    image: orchestracities/quantumleap
+    container_name: mining-quantumleap
+    ports:
+      - "8668:8668"
+    environment:
+      - CRATE_HOST=cratedb
+      - USE_GEOCODING=False
+      - LOGLEVEL=DEBUG
+    depends_on:
+      cratedb:
+        condition: service_healthy
+
+volumes:
+  mongo-data:
+  nodered-data:
